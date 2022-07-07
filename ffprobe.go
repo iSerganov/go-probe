@@ -4,123 +4,106 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"io"
 	"os/exec"
-	"time"
 )
 
-var (
-	// ErrBinNotFound is returned when the ffprobe binary was not found
-	ErrBinNotFound = errors.New("ffprobe bin not found")
-	// ErrTimeout is returned when the ffprobe process did not succeed within the given time
-	ErrTimeout = errors.New("process timeout exceeded")
-
-	binPath = "ffprobe"
-)
+var binPath = "ffprobe"
 
 // SetFFProbeBinPath sets the global path to find and execute the ffprobe program
 func SetFFProbeBinPath(newBinPath string) {
 	binPath = newBinPath
 }
 
-// GetProbeData is used for probing the given media file using ffprobe with a set timeout.
-// The timeout can be provided to kill the process if it takes too long to determine
-// the files information.
-// Note: It is probably better to use Context with GetProbeDataContext() these days as it is more flexible.
-func GetProbeData(filePath string, timeout time.Duration) (data *ProbeData, err error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+// ProbeURL is used to probe the given media file using ffprobe. The URL can be a local path, a HTTP URL or any other
+// protocol supported by ffprobe, see here for a full list: https://ffmpeg.org/ffmpeg-protocols.html
+// This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
+// Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
+func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+	args := buildArgs(extraFFProbeOptions)
 
-	return GetProbeDataContext(ctx, filePath)
+	// Add the file argument
+	args = append(args, fileURL)
+
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd.SysProcAttr = procAttributes()
+
+	return runProbe(cmd)
 }
 
-// GetProbeDataContext is used for probing the given media file using ffprobe.
-// It takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
-func GetProbeDataContext(ctx context.Context, filePath string) (data *ProbeData, err error) {
-	cmd := exec.Command(
-		binPath,
-		"-v", "quiet",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-		filePath,
-	)
+// ProbeReader is used to probe a media file using an io.Reader. The reader is piped to the stdin of the ffprobe command
+// and the data is returned.
+// This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
+// Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
+func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+	args := buildArgs(extraFFProbeOptions)
 
-	var outputBuf bytes.Buffer
-	cmd.Stdout = &outputBuf
+	// Add the file from stdin argument
+	args = append(args, "-")
 
-	err = cmd.Start()
-	if err == exec.ErrNotFound {
-		return nil, ErrBinNotFound
-	} else if err != nil {
-		return nil, err
-	}
+	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd.Stdin = reader
+	cmd.SysProcAttr = procAttributes()
 
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case <-ctx.Done():
-		err = cmd.Process.Kill()
-		if err == nil {
-			return nil, ErrTimeout
-		}
-		return nil, err
-	case err = <-done:
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	data = &ProbeData{}
-	err = json.Unmarshal(outputBuf.Bytes(), data)
-	if err != nil {
-		return data, err
-	}
-
-	return data, nil
+	return runProbe(cmd)
 }
 
-// GetProbeDataOptions is used for probing the given media file using ffprobe, optionally taking in extra arguments for ffprobe.
-// It takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
-func GetProbeDataOptions(ctx context.Context, file string, extraFFProbeOptions ...string) (data *ProbeData, err error) {
-	args := append([]string{
-		"-loglevel", "fatal",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-	}, extraFFProbeOptions...)
-	args = append(args, file)
-
-	cmd := exec.CommandContext(
-		ctx,
-		binPath,
-		args...,
-	)
-
+// runProbe takes the fully configured ffprobe command and executes it, returning the ffprobe data if everything went fine.
+func runProbe(cmd *exec.Cmd) (*ProbeData, *ProbeError) {
 	var outputBuf bytes.Buffer
 	var stdErr bytes.Buffer
 
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = &stdErr
 
-	err = cmd.Run()
+	err := cmd.Run()
+
+	probeErr := &rootError{}
+	unmarshallingProbeError := json.Unmarshal(outputBuf.Bytes(), probeErr)
+	if unmarshallingProbeError == nil {
+		return nil, &probeErr.Err
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("error running ffprobe [%s] %w", stdErr.String(), err)
+		return nil, &ProbeError{
+			Message: fmt.Sprintf("error running %s [%s] %s", binPath, stdErr.String(), err.Error()),
+		}
 	}
 
-	if stdErr.String() != "" {
-		return nil, fmt.Errorf("ffprobe error: %s", stdErr.String())
+	if stdErr.Len() > 0 {
+		return nil, &ProbeError{
+			Message: fmt.Sprintf("ffprobe error: %s", stdErr.String()),
+		}
 	}
 
-	data = &ProbeData{}
+	data := &ProbeData{}
 	err = json.Unmarshal(outputBuf.Bytes(), data)
 	if err != nil {
-		return data, fmt.Errorf("error unmarshalling output: %w", err)
+		return data, &ProbeError{
+			Message: fmt.Sprintf("error parsing ffprobe output: %s", err.Error()),
+		}
+	}
+
+	// Populate the old Tags structs for backwards compatibility purposes:
+	if len(data.Format.TagList) > 0 {
+		data.Format.Tags = &FormatTags{}
+		data.Format.Tags.setFrom(data.Format.TagList)
+	}
+	for _, str := range data.Streams {
+		str.Tags.setFrom(str.TagList)
 	}
 
 	return data, nil
+}
+
+func buildArgs(extraFFProbeOptions []string) []string {
+	args := append([]string{
+		"-loglevel", "fatal",
+		"-print_format", "json",
+		"-show_format",
+		"-show_streams",
+		"-show_error",
+	}, extraFFProbeOptions...)
+	return args
 }

@@ -1,11 +1,16 @@
 package ffprobe
 
 import (
+	"regexp"
+	"strconv"
 	"time"
 )
 
 // StreamType represents a media stream type like video, audio, subtitles, etc
 type StreamType string
+
+var re = regexp.MustCompile(`Server returned (\d\d\d) (.*)$`)
+var iseRe = regexp.MustCompile(`Server returned (5XX) (.*)$`)
 
 const (
 	// StreamAny means any type of stream
@@ -16,24 +21,58 @@ const (
 	StreamAudio StreamType = "audio"
 	// StreamSubtitle is a subtitle stream
 	StreamSubtitle StreamType = "subtitle"
-)
-
-// TODO: FIXME: We should remove the ALL_CAPS variants some time in the future (golint hates them)
-const (
-	// STREAM_ANY deprecated, use StreamAny
-	STREAM_ANY = StreamAny
-	// STREAM_VIDEO deprecated, use StreamVideo
-	STREAM_VIDEO = StreamVideo
-	// STREAM_AUDIO deprecated, use StreamAudio
-	STREAM_AUDIO = StreamAudio
-	// STREAM_SUBTITLE deprecated, use StreamSubtitle
-	STREAM_SUBTITLE = StreamSubtitle
+	// StreamData is a data stream
+	StreamData StreamType = "data"
+	// StreamAttachment is an attachment stream
+	StreamAttachment StreamType = "attachment"
 )
 
 // ProbeData is the root json data structure returned by an ffprobe.
 type ProbeData struct {
 	Streams []*Stream `json:"streams"`
 	Format  *Format   `json:"format"`
+}
+
+// ProbeError is the json data structure returned by an ffprobe in case of an error.
+type ProbeError struct {
+	Code    int    `json:"code"`
+	Message string `json:"string"`
+}
+
+type rootError struct {
+	Err ProbeError `json:"error"`
+}
+
+func (pe *ProbeError) Error() string {
+	return pe.Message
+}
+
+// HTTPErrorCode returns HTTP error code in case of URL probe failed with server failure response
+func (pe *ProbeError) HTTPErrorCode() int {
+	if pe == nil || pe.Message == "" {
+		return 0
+	}
+	res := re.FindStringSubmatch(pe.Message)
+	if len(res) < 2 {
+		return 0
+	}
+	num, err := strconv.Atoi(res[1])
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
+// IsInternalServerError indicates if ffprobe returned one of 5XX codes
+func (pe *ProbeError) IsInternalServerError() bool {
+	if pe == nil || pe.Message == "" {
+		return false
+	}
+	res := iseRe.FindStringSubmatch(pe.Message)
+	if len(res) < 2 {
+		return false
+	}
+	return true
 }
 
 // Format is a json data structure to represent formats
@@ -48,15 +87,8 @@ type Format struct {
 	Size             string      `json:"size"`
 	BitRate          string      `json:"bit_rate"`
 	ProbeScore       int         `json:"probe_score"`
-	Tags             *FormatTags `json:"tags"`
-}
-
-// FormatTags is a json data structure to represent format tags
-type FormatTags struct {
-	MajorBrand       string `json:"major_brand"`
-	MinorVersion     string `json:"minor_version"`
-	CompatibleBrands string `json:"compatible_brands"`
-	CreationTime     string `json:"creation_time"`
+	TagList          Tags        `json:"tags"`
+	Tags             *FormatTags `json:"-"` // Deprecated: Use TagList instead
 }
 
 // Stream is a json data structure to represent streams.
@@ -81,7 +113,9 @@ type Stream struct {
 	BitsPerRawSample   string            `json:"bits_per_raw_sample"`
 	NbFrames           string            `json:"nb_frames"`
 	Disposition        StreamDisposition `json:"disposition,omitempty"`
-	Tags               StreamTags        `json:"tags,omitempty"`
+	TagList            Tags              `json:"tags"`
+	Tags               StreamTags        `json:"-"` // Deprecated: Use TagList instead
+	FieldOrder         string            `json:"field_order,omitempty"`
 	Profile            string            `json:"profile,omitempty"`
 	Width              int               `json:"width"`
 	Height             int               `json:"height"`
@@ -114,16 +148,6 @@ type StreamDisposition struct {
 	AttachedPic     int `json:"attached_pic"`
 }
 
-// StreamTags is a json data structure to represent stream tags
-type StreamTags struct {
-	Rotate       int    `json:"rotate,string,omitempty"`
-	CreationTime string `json:"creation_time,omitempty"`
-	Language     string `json:"language,omitempty"`
-	Title        string `json:"title,omitempty"`
-	Encoder      string `json:"encoder,omitempty"`
-	Location     string `json:"location,omitempty"`
-}
-
 // StartTime returns the start time of the media file as a time.Duration
 func (f *Format) StartTime() (duration time.Duration) {
 	return time.Duration(f.StartTimeSeconds * float64(time.Second))
@@ -134,8 +158,8 @@ func (f *Format) Duration() (duration time.Duration) {
 	return time.Duration(f.DurationSeconds * float64(time.Second))
 }
 
-// GetStreams returns all streams which are of the given type
-func (p *ProbeData) GetStreams(streamType StreamType) (streams []Stream) {
+// StreamType returns all streams which are of the given type
+func (p *ProbeData) StreamType(streamType StreamType) (streams []Stream) {
 	for _, s := range p.Streams {
 		if s == nil {
 			continue
@@ -152,39 +176,37 @@ func (p *ProbeData) GetStreams(streamType StreamType) (streams []Stream) {
 	return streams
 }
 
-// GetFirstVideoStream returns the first video stream found
-func (p *ProbeData) GetFirstVideoStream() (str *Stream) {
-	for _, s := range p.Streams {
-		if s == nil {
-			continue
-		}
-		if s.CodecType == string(StreamVideo) {
-			return s
-		}
-	}
-	return nil
+// FirstVideoStream returns the first video stream found
+func (p *ProbeData) FirstVideoStream() *Stream {
+	return p.firstStream(StreamVideo)
 }
 
-// GetFirstAudioStream returns the first audio stream found
-func (p *ProbeData) GetFirstAudioStream() (str *Stream) {
-	for _, s := range p.Streams {
-		if s == nil {
-			continue
-		}
-		if s.CodecType == string(StreamAudio) {
-			return s
-		}
-	}
-	return nil
+// FirstAudioStream returns the first audio stream found
+func (p *ProbeData) FirstAudioStream() *Stream {
+	return p.firstStream(StreamAudio)
 }
 
-// GetFirstSubtitleStream returns the first subtitle stream found
-func (p *ProbeData) GetFirstSubtitleStream() (str *Stream) {
+// FirstSubtitleStream returns the first subtitle stream found
+func (p *ProbeData) FirstSubtitleStream() *Stream {
+	return p.firstStream(StreamSubtitle)
+}
+
+// FirstDataStream returns the first data stream found
+func (p *ProbeData) FirstDataStream() *Stream {
+	return p.firstStream(StreamData)
+}
+
+// FirstAttachmentStream returns the first attachment stream found
+func (p *ProbeData) FirstAttachmentStream() *Stream {
+	return p.firstStream(StreamAttachment)
+}
+
+func (p *ProbeData) firstStream(streamType StreamType) *Stream {
 	for _, s := range p.Streams {
 		if s == nil {
 			continue
 		}
-		if s.CodecType == string(StreamSubtitle) {
+		if s.CodecType == string(streamType) {
 			return s
 		}
 	}

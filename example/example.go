@@ -1,12 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"os"
 	"time"
 
-	ffprobe "github.com/vansante/go-ffprobe"
+	ffprobe "gopkg.in/iSerganov/go-probe"
 )
 
 func main() {
@@ -16,7 +17,10 @@ func main() {
 	}
 	path := os.Args[1]
 
-	data, err := ffprobe.GetProbeData(path, 500*time.Millisecond)
+	ctx, cancelFn := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelFn()
+
+	data, err := ffprobe.ProbeURL(ctx, path)
 	if err != nil {
 		log.Panicf("Error getting data: %v", err)
 	}
@@ -27,13 +31,13 @@ func main() {
 	}
 	log.Print(string(buf))
 
-	buf, err = json.MarshalIndent(data.GetFirstVideoStream(), "", "  ")
+	buf, err = json.MarshalIndent(data.FirstVideoStream(), "", "  ")
 	if err != nil {
 		log.Panicf("Error unmarshalling: %v", err)
 	}
 	log.Print(string(buf))
 
-	log.Printf("%v", data.GetStreams(ffprobe.StreamVideo))
+	log.Printf("%v", data.StreamType(ffprobe.StreamVideo))
 
 	log.Printf("\nDuration: %v\n", data.Format.Duration())
 	log.Printf("\nStartTime: %v\n", data.Format.StartTime())
