@@ -61,7 +61,7 @@ func runProbe(cmd *exec.Cmd) (*ProbeData, *ProbeError) {
 
 	probeErr := &rootError{}
 	unmarshallingProbeError := json.Unmarshal(outputBuf.Bytes(), probeErr)
-	if unmarshallingProbeError == nil {
+	if unmarshallingProbeError == nil && probeErr.Err.Message != "" {
 		return nil, &probeErr.Err
 	}
 
@@ -83,15 +83,6 @@ func runProbe(cmd *exec.Cmd) (*ProbeData, *ProbeError) {
 		return data, &ProbeError{
 			Message: fmt.Sprintf("error parsing ffprobe output: %s", err.Error()),
 		}
-	}
-
-	// Populate the old Tags structs for backwards compatibility purposes:
-	if len(data.Format.TagList) > 0 {
-		data.Format.Tags = &FormatTags{}
-		data.Format.Tags.setFrom(data.Format.TagList)
-	}
-	for _, str := range data.Streams {
-		str.Tags.setFrom(str.TagList)
 	}
 
 	return data, nil

@@ -75,13 +75,6 @@ func validateData(t *testing.T, data *ProbeData) {
 
 	// Check some Tags
 	const testLanguage = "und"
-	if stream[0].Tags.Rotate != 0 {
-		t.Errorf("Video stream rotate tag is not 0")
-	}
-	if stream[0].Tags.Language != testLanguage {
-		t.Errorf("Video stream language tag is not %s", testLanguage)
-	}
-
 	if val, err := stream[0].TagList.GetString("language"); err != nil {
 		t.Errorf("retrieving language tag errors: %v", err)
 	} else if val != testLanguage {
@@ -116,10 +109,6 @@ func validateData(t *testing.T, data *ProbeData) {
 
 	// Check some Tags
 	const testMajorBrand = "isom"
-	if data.Format.Tags.MajorBrand != testMajorBrand {
-		t.Errorf("MajorBrand format tag is not %s", testMajorBrand)
-	}
-
 	if val, err := data.Format.TagList.GetString("major_brand"); err != nil {
 		t.Errorf("retrieving major_brand tag errors: %v", err)
 	} else if val != testMajorBrand {

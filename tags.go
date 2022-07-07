@@ -109,25 +109,3 @@ func (f *FormatTags) setFrom(tags Tags) {
 	f.CompatibleBrands, _ = tags.GetString("compatible_brands")
 	f.CreationTime, _ = tags.GetString("creation_time")
 }
-
-// StreamTags is a json data structure to represent stream tags
-// Deprecated, use the Tags of TagList instead
-type StreamTags struct {
-	Rotate       int    `json:"rotate,string,omitempty"`
-	CreationTime string `json:"creation_time,omitempty"`
-	Language     string `json:"language,omitempty"`
-	Title        string `json:"title,omitempty"`
-	Encoder      string `json:"encoder,omitempty"`
-	Location     string `json:"location,omitempty"`
-}
-
-func (s *StreamTags) setFrom(tags Tags) {
-	rotate, _ := tags.GetInt("rotate")
-	s.Rotate = int(rotate)
-
-	s.CreationTime, _ = tags.GetString("creation_time")
-	s.Language, _ = tags.GetString("language")
-	s.Title, _ = tags.GetString("title")
-	s.Encoder, _ = tags.GetString("encoder")
-	s.Location, _ = tags.GetString("location")
-}

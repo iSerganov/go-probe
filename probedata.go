@@ -77,18 +77,17 @@ func (pe *ProbeError) IsInternalServerError() bool {
 
 // Format is a json data structure to represent formats
 type Format struct {
-	Filename         string      `json:"filename"`
-	NBStreams        int         `json:"nb_streams"`
-	NBPrograms       int         `json:"nb_programs"`
-	FormatName       string      `json:"format_name"`
-	FormatLongName   string      `json:"format_long_name"`
-	StartTimeSeconds float64     `json:"start_time,string"`
-	DurationSeconds  float64     `json:"duration,string"`
-	Size             string      `json:"size"`
-	BitRate          string      `json:"bit_rate"`
-	ProbeScore       int         `json:"probe_score"`
-	TagList          Tags        `json:"tags"`
-	Tags             *FormatTags `json:"-"` // Deprecated: Use TagList instead
+	Filename         string  `json:"filename"`
+	NBStreams        int     `json:"nb_streams"`
+	NBPrograms       int     `json:"nb_programs"`
+	FormatName       string  `json:"format_name"`
+	FormatLongName   string  `json:"format_long_name"`
+	StartTimeSeconds float64 `json:"start_time,string"`
+	DurationSeconds  float64 `json:"duration,string"`
+	Size             string  `json:"size"`
+	BitRate          string  `json:"bit_rate"`
+	ProbeScore       int     `json:"probe_score"`
+	TagList          Tags    `json:"tags"`
 }
 
 // Stream is a json data structure to represent streams.
@@ -114,7 +113,6 @@ type Stream struct {
 	NbFrames           string            `json:"nb_frames"`
 	Disposition        StreamDisposition `json:"disposition,omitempty"`
 	TagList            Tags              `json:"tags"`
-	Tags               StreamTags        `json:"-"` // Deprecated: Use TagList instead
 	FieldOrder         string            `json:"field_order,omitempty"`
 	Profile            string            `json:"profile,omitempty"`
 	Width              int               `json:"width"`

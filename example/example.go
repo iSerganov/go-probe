@@ -25,15 +25,15 @@ func main() {
 		log.Panicf("Error getting data: %v", err)
 	}
 
-	buf, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		log.Panicf("Error unmarshalling: %v", err)
+	buf, mErr := json.MarshalIndent(data, "", "  ")
+	if mErr != nil {
+		log.Panicf("Error unmarshalling: %v", mErr)
 	}
 	log.Print(string(buf))
 
-	buf, err = json.MarshalIndent(data.FirstVideoStream(), "", "  ")
-	if err != nil {
-		log.Panicf("Error unmarshalling: %v", err)
+	buf, mErr = json.MarshalIndent(data.FirstVideoStream(), "", "  ")
+	if mErr != nil {
+		log.Panicf("Error unmarshalling: %v", mErr)
 	}
 	log.Print(string(buf))
 
