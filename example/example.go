@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/vansante/go-ffprobe.v2"
+	ffprobe "gopkg.in/iSerganov/go-probe"
 )
 
 func main() {

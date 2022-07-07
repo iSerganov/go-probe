@@ -1,11 +1,16 @@
 package ffprobe
 
 import (
+	"regexp"
+	"strconv"
 	"time"
 )
 
 // StreamType represents a media stream type like video, audio, subtitles, etc
 type StreamType string
+
+var re = regexp.MustCompile(`Server returned (\d\d\d) (.*)$`)
+var iseRe = regexp.MustCompile(`Server returned (5XX) (.*)$`)
 
 const (
 	// StreamAny means any type of stream
@@ -26,6 +31,48 @@ const (
 type ProbeData struct {
 	Streams []*Stream `json:"streams"`
 	Format  *Format   `json:"format"`
+}
+
+// ProbeError is the json data structure returned by an ffprobe in case of an error.
+type ProbeError struct {
+	Code    int    `json:"code"`
+	Message string `json:"string"`
+}
+
+type rootError struct {
+	Err ProbeError `json:"error"`
+}
+
+func (pe *ProbeError) Error() string {
+	return pe.Message
+}
+
+// HTTPErrorCode returns HTTP error code in case of URL probe failed with server failure response
+func (pe *ProbeError) HTTPErrorCode() int {
+	if pe == nil || pe.Message == "" {
+		return 0
+	}
+	res := re.FindStringSubmatch(pe.Message)
+	if len(res) < 2 {
+		return 0
+	}
+	num, err := strconv.Atoi(res[1])
+	if err != nil {
+		return 0
+	}
+	return num
+}
+
+// IsInternalServerError indicates if ffprobe returned one of 5XX codes
+func (pe *ProbeError) IsInternalServerError() bool {
+	if pe == nil || pe.Message == "" {
+		return false
+	}
+	res := iseRe.FindStringSubmatch(pe.Message)
+	if len(res) < 2 {
+		return false
+	}
+	return true
 }
 
 // Format is a json data structure to represent formats

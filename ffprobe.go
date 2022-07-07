@@ -20,13 +20,8 @@ func SetFFProbeBinPath(newBinPath string) {
 // protocol supported by ffprobe, see here for a full list: https://ffmpeg.org/ffmpeg-protocols.html
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err error) {
-	args := append([]string{
-		"-loglevel", "fatal",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-	}, extraFFProbeOptions...)
+func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file argument
 	args = append(args, fileURL)
@@ -41,13 +36,8 @@ func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string
 // and the data is returned.
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err error) {
-	args := append([]string{
-		"-loglevel", "fatal",
-		"-print_format", "json",
-		"-show_format",
-		"-show_streams",
-	}, extraFFProbeOptions...)
+func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file from stdin argument
 	args = append(args, "-")
@@ -60,26 +50,39 @@ func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...s
 }
 
 // runProbe takes the fully configured ffprobe command and executes it, returning the ffprobe data if everything went fine.
-func runProbe(cmd *exec.Cmd) (data *ProbeData, err error) {
+func runProbe(cmd *exec.Cmd) (*ProbeData, *ProbeError) {
 	var outputBuf bytes.Buffer
 	var stdErr bytes.Buffer
 
 	cmd.Stdout = &outputBuf
 	cmd.Stderr = &stdErr
 
-	err = cmd.Run()
+	err := cmd.Run()
+
+	probeErr := &rootError{}
+	unmarshallingProbeError := json.Unmarshal(outputBuf.Bytes(), probeErr)
+	if unmarshallingProbeError == nil {
+		return nil, &probeErr.Err
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("error running %s [%s] %w", binPath, stdErr.String(), err)
+		return nil, &ProbeError{
+			Message: fmt.Sprintf("error running %s [%s] %s", binPath, stdErr.String(), err.Error()),
+		}
 	}
 
 	if stdErr.Len() > 0 {
-		return nil, fmt.Errorf("ffprobe error: %s", stdErr.String())
+		return nil, &ProbeError{
+			Message: fmt.Sprintf("ffprobe error: %s", stdErr.String()),
+		}
 	}
 
-	data = &ProbeData{}
+	data := &ProbeData{}
 	err = json.Unmarshal(outputBuf.Bytes(), data)
 	if err != nil {
-		return data, fmt.Errorf("error parsing ffprobe output: %w", err)
+		return data, &ProbeError{
+			Message: fmt.Sprintf("error parsing ffprobe output: %s", err.Error()),
+		}
 	}
 
 	// Populate the old Tags structs for backwards compatibility purposes:
@@ -92,4 +95,15 @@ func runProbe(cmd *exec.Cmd) (data *ProbeData, err error) {
 	}
 
 	return data, nil
+}
+
+func buildArgs(extraFFProbeOptions []string) []string {
+	args := append([]string{
+		"-loglevel", "fatal",
+		"-print_format", "json",
+		"-show_format",
+		"-show_streams",
+		"-show_error",
+	}, extraFFProbeOptions...)
+	return args
 }
