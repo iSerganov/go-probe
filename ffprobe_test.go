@@ -39,7 +39,7 @@ func Test_ProbeURL_HTTP(t *testing.T) {
 	}()
 
 	// Make sure HTTP is up
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 500)
 
 	data, err := ProbeURL(ctx, fmt.Sprintf("http://127.0.0.1:%d/test.mp4", testPort))
 	if err != nil {
