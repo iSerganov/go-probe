@@ -69,10 +69,7 @@ func (pe *ProbeError) IsInternalServerError() bool {
 		return false
 	}
 	res := iseRe.FindStringSubmatch(pe.Message)
-	if len(res) < 2 {
-		return false
-	}
-	return true
+	return len(res) >= 2
 }
 
 // Format is a json data structure to represent formats
