@@ -102,10 +102,3 @@ type FormatTags struct {
 	CompatibleBrands string `json:"compatible_brands"`
 	CreationTime     string `json:"creation_time"`
 }
-
-func (f *FormatTags) setFrom(tags Tags) {
-	f.MajorBrand, _ = tags.GetString("major_brand")
-	f.MinorVersion, _ = tags.GetString("minor_version")
-	f.CompatibleBrands, _ = tags.GetString("compatible_brands")
-	f.CreationTime, _ = tags.GetString("creation_time")
-}
