@@ -20,7 +20,7 @@ func SetFFProbeBinPath(newBinPath string) {
 // protocol supported by ffprobe, see here for a full list: https://ffmpeg.org/ffmpeg-protocols.html
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err error) {
 	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file argument
@@ -36,7 +36,7 @@ func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string
 // and the data is returned.
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err *ProbeError) {
+func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err error) {
 	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file from stdin argument
@@ -50,7 +50,7 @@ func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...s
 }
 
 // runProbe takes the fully configured ffprobe command and executes it, returning the ffprobe data if everything went fine.
-func runProbe(cmd *exec.Cmd) (*ProbeData, *ProbeError) {
+func runProbe(cmd *exec.Cmd) (*ProbeData, error) {
 	var outputBuf bytes.Buffer
 	var stdErr bytes.Buffer
 
