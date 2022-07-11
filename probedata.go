@@ -9,7 +9,7 @@ import (
 // StreamType represents a media stream type like video, audio, subtitles, etc
 type StreamType string
 
-var re = regexp.MustCompile(`Server returned (\d\d\d) (.*)$`)
+var re = regexp.MustCompile(`Server returned (\d{3}) (.*)$`)
 var iseRe = regexp.MustCompile(`Server returned (5XX) (.*)$`)
 
 const (
@@ -154,6 +154,7 @@ func (f *Format) Duration() (duration time.Duration) {
 }
 
 // StreamType returns all streams which are of the given type
+// nolint:exhaustive
 func (p *ProbeData) StreamType(streamType StreamType) (streams []Stream) {
 	for _, s := range p.Streams {
 		if s == nil {

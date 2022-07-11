@@ -95,7 +95,7 @@ func valToFloat64(str string) (float64, error) {
 }
 
 // FormatTags is a json data structure to represent format tags
-// Deprecated, use the Tags of TagList instead
+// Deprecated: use the Tags of TagList instead
 type FormatTags struct {
 	MajorBrand       string `json:"major_brand"`
 	MinorVersion     string `json:"minor_version"`
