@@ -8,7 +8,7 @@ representing the returned ffprobe data.
 ## Installation
 
 ```
-go get gopkg.in/iSerganov/go-probe
+go get github.com/iSerganov/go-probe/v2
 ```
 
 ## Documentation
