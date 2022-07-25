@@ -2,7 +2,6 @@ package ffprobe
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,13 +19,13 @@ func SetFFProbeBinPath(newBinPath string) {
 // protocol supported by ffprobe, see here for a full list: https://ffmpeg.org/ffmpeg-protocols.html
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err error) {
+func ProbeURL(fileURL string, extraFFProbeOptions ...string) (data *ProbeData, err error) {
 	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file argument
 	args = append(args, fileURL)
 
-	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd := exec.Command(binPath, args...)
 	cmd.SysProcAttr = procAttributes()
 
 	return runProbe(cmd)
@@ -36,13 +35,13 @@ func ProbeURL(ctx context.Context, fileURL string, extraFFProbeOptions ...string
 // and the data is returned.
 // This function takes a context to allow killing the ffprobe process if it takes too long or in case of shutdown.
 // Any additional ffprobe parameter can be supplied as well using extraFFProbeOptions.
-func ProbeReader(ctx context.Context, reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err error) {
+func ProbeReader(reader io.Reader, extraFFProbeOptions ...string) (data *ProbeData, err error) {
 	args := buildArgs(extraFFProbeOptions)
 
 	// Add the file from stdin argument
 	args = append(args, "-")
 
-	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd := exec.Command(binPath, args...)
 	cmd.Stdin = reader
 	cmd.SysProcAttr = procAttributes()
 
