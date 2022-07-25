@@ -1,4 +1,4 @@
-module gopkg.in/iSerganov/go-probe
+module gopkg.in/iSerganov/go-probe/v2
 
 go 1.18
 

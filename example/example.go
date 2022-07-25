@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	ffprobe "gopkg.in/iSerganov/go-probe"
+	ffprobe "gopkg.in/iSerganov/go-probe/v2"
 )
 
 func main() {
